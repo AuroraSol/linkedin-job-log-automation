@@ -54,6 +54,7 @@ to help me learn how to create a script.
 *  The Script will only run when you click run or otherwise set up a trigger.
     If you decide to set up an ongoing trigger, I suggest running it no more than every 10 or 15 mins as it will reach a threshold and fail
    due to hitting a quota limit. To set up a trigger please see the steps below;
+* The script is set up to fill according to how I titled my sheet, Date in the first column, Method of contact in the second column etc. (example in my free template) if you make your own sheet or change it, you will need to update the script or it won't parse the data correctly from your email into the sheet
 
 ---
 ### How to Create a Trigger - Running it based on time 
