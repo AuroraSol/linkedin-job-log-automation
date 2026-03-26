@@ -1,73 +1,80 @@
 /**
- * LinkedIn Job Application Automator
- * This script scans Gmail for LinkedIn application confirmations and 
- * automatically logs the details into a Google Sheet.
+ * Unified LinkedIn Job Tracker
+ * Automatically logs new applications and updates existing ones to "Declined"
  */
-
-function autoLogLinkedInApps() {
+function syncLinkedInApplications() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  
-  // Connects to your specific tab. Change "Search Log" to your tab name.
   const sheet = ss.getSheetByName("Search Log") || ss.getSheets()[0];
-
-  // SEARCH: Look for emails from LinkedIn regarding "application" received in the last 7 days
-  // you can update the time frame to your preferences and/or also change the trigger settings
-  const threads = GmailApp.search('from:jobs-noreply@linkedin.com "application" newer_than:7d');
   
+  // Search for LinkedIn automated emails from the last 7 days
+  const threads = GmailApp.search('from:jobs-noreply@linkedin.com newer_than:7d');
+
   for (const thread of threads) {
     const messages = thread.getMessages();
     for (const message of messages) {
-      
-      // Process only emails that haven't been read yet to avoid duplicates
       if (message.isUnread()) {
         const subject = message.getSubject();
-        const body = message.getPlainBody();
         const date = message.getDate();
-
         let role = "";
         let company = "";
+        let status = "Application Sent"; 
 
-        // 1. EXTRACTION: Pull the Role and Company from the Subject Line
-        // This looks for patterns like "application to [Role] at [Company]"
-        const match = subject.match(/application.* to (.*) at (.*)/i);
-        const sentMatch = subject.match(/application.* sent to (.*)/i);
-
-        if (match) {
-          role = match[1].trim();
-          company = match[2].trim();
-        } else if (sentMatch) {
-          company = sentMatch[1].trim();
-        }
-
-        // 2. FALLBACK: If the subject is generic, scan the email body for the job details
-        // Some of the emails subject line do not contain the role but will search the body intead to grab it
-        if (!role || role === "Applied") {
-          const lines = body.split('\n');
-          for (let i = 0; i < lines.length; i++) {
-            if (lines[i].toLowerCase().includes("your application was sent to")) {
-              // Grabs the company name from the same line and the role from the next line
-              company = company || lines[i].split("to").pop().trim();
-              role = lines[i+1]?.trim() || lines[i+2]?.trim() || "Applied";
-              break;
-            }
+        // 1. REJECTION CASE (Subject: "Your application to [Role] at [Company]")
+        // We identify these by the lack of "confirmation" in the subject
+        if (subject.includes("Your application to") && !subject.toLowerCase().includes("confirmation")) {
+          const rejectMatch = subject.match(/Your application to (.*) at (.*)/i);
+          if (rejectMatch) {
+            role = rejectMatch[1].trim();
+            company = rejectMatch[2].trim();
+            status = "Declined - No Interview";
+          }
+        } 
+        // 2. NEW APPLICATION CASE (Subject: "Your application to [Role] at [Company] confirmation")
+        else if (subject.toLowerCase().includes("confirmation") || subject.includes("application sent to")) {
+          const appMatch = subject.match(/application.* to (.*) at (.*)/i);
+          const sentMatch = subject.match(/application.* sent to (.*)/i);
+          if (appMatch) {
+            role = appMatch[1].trim();
+            company = appMatch[2].trim();
+          } else if (sentMatch) {
+            company = sentMatch[1].trim();
           }
         }
 
-        // 3. LINK EXTRACTION: Find the direct LinkedIn job URL in the email body
-        // This regex captures long URLs including tracking IDs
-        const linkMatch = body.match(/https:\/\/www\.linkedin\.com\/(?:comm\/)?jobs\/view\/[^\s]+/);
-        const rawLink = linkMatch ? linkMatch[0] : "";
-
-        // 4. FORMATTING: Create a clickable link for the Google Sheet
-        const jobHyperlink = rawLink ? '=HYPERLINK("' + rawLink + '", "' + (company || "View Job") + '")' : "No Link Found";
-
-        // 5. LOGGING: Add the data as a new row in your Work Search Log
-        // Order: Date | Method | Company | Job Title | Link (Clickable) | Status
-        sheet.appendRow([date, "LinkedIn", company, role, jobHyperlink, "Application Sent"]);
-        
-        // 6. FINISH: Mark the email as read so the script doesn't log it again
-        message.markRead();
+        if (company) {
+          processEntry(sheet, date, company, role, status);
+          message.markRead(); 
+        }
       }
     }
+  }
+}
+
+/**
+ * Logic to decide whether to update an existing row or add a new one
+ */
+function processEntry(sheet, date, company, role, status) {
+  const data = sheet.getDataRange().getValues();
+  let rowIndex = -1;
+
+  // Search Column C (Company) for a match
+  for (let i = 0; i < data.length; i++) {
+    const rowCompany = data[i][2] ? data[i][2].toString().trim().toLowerCase() : "";
+    if (rowCompany === company.toLowerCase().trim()) {
+      rowIndex = i + 1;
+      break;
+    }
+  }
+
+  if (rowIndex > -1) {
+    // Update existing row Status (Column F)
+    sheet.getRange(rowIndex, 6).setValue(status);
+    // Fill in Role (Column D) if it's blank
+    if (role && !data[rowIndex-1][3]) {
+      sheet.getRange(rowIndex, 4).setValue(role);
+    }
+  } else {
+    // Add as a new entry if not found
+    sheet.appendRow([date, "LinkedIn", company, role, "", status]);
   }
 }
