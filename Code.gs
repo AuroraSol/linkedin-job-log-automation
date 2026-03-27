@@ -20,8 +20,8 @@ function syncLinkedInApplications() {
         let status = "Application Sent"; 
 
         // 1. REJECTION CASE (Subject: "Your application to [Role] at [Company]")
-        // We identify these by the lack of "confirmation" in the subject
-        if (subject.includes("Your application to") && !subject.toLowerCase().includes("confirmation")) {
+        // We identify these by the lack of "was sent" in the subject
+        if (subject.includes("Your application to") && !subject.toLowerCase().includes("was sent")) {
           const rejectMatch = subject.match(/Your application to (.*) at (.*)/i);
           if (rejectMatch) {
             role = rejectMatch[1].trim();
@@ -29,8 +29,8 @@ function syncLinkedInApplications() {
             status = "Declined - No Interview";
           }
         } 
-        // 2. NEW APPLICATION CASE (Subject: "Your application to [Role] at [Company] confirmation")
-        else if (subject.toLowerCase().includes("confirmation") || subject.includes("application sent to")) {
+        // 2. NEW APPLICATION CASE (Subject: "Your application was sent to [Role] at [Company]")
+        else if (subject.toLowerCase().includes("was sent") || subject.includes("application was sent to")) {
           const appMatch = subject.match(/application.* to (.*) at (.*)/i);
           const sentMatch = subject.match(/application.* sent to (.*)/i);
           if (appMatch) {
